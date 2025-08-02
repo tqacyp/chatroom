@@ -1,4 +1,5 @@
-from flask import Flask, render_template
+# app.py - 服务端代码
+from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit
 from datetime import datetime
 import threading
@@ -48,8 +49,8 @@ def handle_send_message(data):
     if not message:
         return
     
-    # 创建带时间戳的消息
-    timestamp = datetime.now().strftime("%H:%M")
+    # 创建带时间戳的消息（使用月-日 时:分格式）
+    timestamp = datetime.now().strftime("%m-%d %H:%M")
     new_message = {
         'username': username,
         'message': message,
@@ -64,4 +65,4 @@ def handle_send_message(data):
     emit('new_message', new_message, broadcast=True)
 
 if __name__ == '__main__':
-    socketio.run(app, host='192.168.31.10', port=5000, debug=True)
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True)

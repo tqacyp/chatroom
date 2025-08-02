@@ -83,7 +83,7 @@
             flex-direction: column;
             gap: 12px;
             -webkit-overflow-scrolling: touch;
-            padding-bottom: 100px; /* 为输入区域留出空间 */
+            padding-bottom: 150px; /* 增加底部内边距修复滑动问题 */
         }
         
         .welcome {
@@ -155,6 +155,11 @@
         
         .message-content {
             line-height: 1.5;
+        }
+        
+        /* 底部缓冲空间（修复滑动问题） */
+        .buffer-space {
+            height: 50px; /* 额外的缓冲空间 */
         }
         
         /* 输入区域 */
@@ -278,6 +283,10 @@
             .chat-history {
                 padding-bottom: 20px;
             }
+            
+            .buffer-space {
+                height: 30px; /* 桌面端减少缓冲空间 */
+            }
         }
         
         @media (max-width: 480px) {
@@ -334,15 +343,18 @@
     <div class="chat-history" id="chatHistory">
         <div class="welcome">
             <h3>欢迎使用全屏聊天室</h3>
-            <p>输入用户名和消息开始聊天，消息会实时推送给所有在线用户</p>
+            <p>您的用户名已自动设置为IP地址，消息会实时推送给所有在线用户</p>
         </div>
         <!-- 聊天消息将在这里显示 -->
+        
+        <!-- 底部缓冲空间（修复滑动问题） -->
+        <div class="buffer-space"></div>
     </div>
     
     <!-- 输入区域 -->
     <div class="input-area">
         <div class="form-row">
-            <input type="text" id="username" placeholder="用户名" value="访客">
+            <input type="text" id="username" placeholder="用户名" readonly>
         </div>
         
         <div class="message-input-container">
@@ -363,10 +375,27 @@
         const userCountElement = document.getElementById('userCount');
         const statusElement = document.getElementById('status');
         
+        // 获取用户IP地址并设置为默认用户名
+        async function getClientIP() {
+            try {
+                const response = await fetch('https://api.ipify.org?format=json');
+                const data = await response.json();
+                return data.ip;
+            } catch (error) {
+                console.error('获取IP失败:', error);
+                // 使用随机ID作为后备方案
+                return 'user-' + Math.floor(Math.random() * 10000);
+            }
+        }
+        
         // 连接状态
-        socket.on('connect', () => {
+        socket.on('connect', async () => {
             statusElement.textContent = '已连接';
             statusElement.style.color = '#2ecc71';
+            
+            // 设置默认用户名
+            const userIP = await getClientIP();
+            usernameInput.value = userIP;
         });
         
         socket.on('disconnect', () => {
@@ -426,10 +455,6 @@
                 return;
             }
             
-            // 创建时间戳
-            const now = new Date();
-            const timestamp = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-            
             // 通过socket发送消息
             socket.emit('send_message', {
                 username: username,
@@ -465,6 +490,21 @@
         sendBtn.addEventListener('touchend', function() {
             this.style.transform = '';
         });
+        
+        // 修复移动端滑动问题
+        function adjustChatHeight() {
+            if (window.innerHeight > 500) {
+                chatHistory.style.paddingBottom = '150px';
+            } else {
+                chatHistory.style.paddingBottom = '180px';
+            }
+            scrollToBottom();
+        }
+        
+        // 初始调整
+        adjustChatHeight();
+        // 窗口大小变化时重新调整
+        window.addEventListener('resize', adjustChatHeight);
     </script>
 </body>
 </html>
