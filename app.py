@@ -1,8 +1,9 @@
-# app.py - 服务端代码
+# app.py - 服务端代码（改进版）
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit
 from datetime import datetime
 import threading
+import socket
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key'
@@ -15,10 +16,30 @@ lock = threading.Lock()
 # 在线用户计数
 online_users = 0
 
+def get_client_ip():
+    """获取客户端真实IP地址"""
+    # 检查代理头
+    if request.headers.get('X-Forwarded-For'):
+        ip = request.headers.get('X-Forwarded-For').split(',')[0].strip()
+    elif request.headers.get('X-Real-IP'):
+        ip = request.headers.get('X-Real-IP')
+    else:
+        ip = request.remote_addr
+    
+    # 处理IPv6地址格式
+    if ip.startswith('::ffff:'):
+        ip = ip[7:]
+    
+    return ip
+
 @app.route('/')
 def index():
     """渲染聊天室主页面"""
-    return render_template('chat.html')
+    # 获取客户端真实IP地址
+    client_ip = get_client_ip()
+    
+    # 渲染模板并传递客户端IP
+    return render_template('chat.html', client_ip=client_ip)
 
 @socketio.on('connect')
 def handle_connect():
@@ -65,4 +86,4 @@ def handle_send_message(data):
     emit('new_message', new_message, broadcast=True)
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+    socketio.run(app, host='0.0.0.0', port=5000, debug=False)

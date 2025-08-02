@@ -322,6 +322,11 @@
             #username {
                 flex: 1;
             }
+            
+            #username {
+                font-size: 0.85rem;
+                padding: 8px 10px;
+            }
         }
     </style>
 </head>
@@ -354,7 +359,7 @@
     <!-- 输入区域 -->
     <div class="input-area">
         <div class="form-row">
-            <input type="text" id="username" placeholder="用户名" readonly>
+            <input type="text" id="username" placeholder="用户名" value="{{ client_ip }}">
         </div>
         
         <div class="message-input-container">
@@ -375,27 +380,10 @@
         const userCountElement = document.getElementById('userCount');
         const statusElement = document.getElementById('status');
         
-        // 获取用户IP地址并设置为默认用户名
-        async function getClientIP() {
-            try {
-                const response = await fetch('https://api.ipify.org?format=json');
-                const data = await response.json();
-                return data.ip;
-            } catch (error) {
-                console.error('获取IP失败:', error);
-                // 使用随机ID作为后备方案
-                return 'user-' + Math.floor(Math.random() * 10000);
-            }
-        }
-        
         // 连接状态
-        socket.on('connect', async () => {
+        socket.on('connect', () => {
             statusElement.textContent = '已连接';
             statusElement.style.color = '#2ecc71';
-            
-            // 设置默认用户名
-            const userIP = await getClientIP();
-            usernameInput.value = userIP;
         });
         
         socket.on('disconnect', () => {
