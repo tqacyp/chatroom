@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简单网页聊天室</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+            color: #333;
+            line-height: 1.6;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 15px;
+            box-shadow: 0 5px 25px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+        
+        header {
+            background: linear-gradient(to right, #4b6cb7, #182848);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 2.2rem;
+            margin-bottom: 10px;
+        }
+        
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 70vh;
+        }
+        
+        .chat-history {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .message {
+            margin-bottom: 15px;
+            padding: 10px 15px;
+            border-radius: 10px;
+            background-color: white;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #4b6cb7;
+        }
+        
+        .timestamp {
+            font-size: 0.8rem;
+            color: #777;
+        }
+        
+        .message-content {
+            padding-left: 5px;
+            word-wrap: break-word;
+        }
+        
+        .input-area {
+            padding: 20px;
+            background-color: white;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #182848;
+        }
+        
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #4b6cb7;
+            box-shadow: 0 0 0 2px rgba(75, 108, 183, 0.2);
+        }
+        
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        
+        button {
+            background: linear-gradient(to right, #4b6cb7, #182848);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            font-size: 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        .user-count {
+            text-align: center;
+            padding: 10px;
+            background-color: #e9ecef;
+            font-size: 0.9rem;
+            color: #495057;
+        }
+        
+        footer {
+            text-align: center;
+            padding: 15px;
+            color: #6c757d;
+            font-size: 0.9rem;
+            background-color: #f8f9fa;
+        }
+        
+        @media (max-width: 600px) {
+            .container {
+                margin: 10px;
+            }
+            
+            .chat-container {
+                height: 65vh;
+            }
+            
+            h1 {
+                font-size: 1.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>简易网页聊天室</h1>
+            <p>与朋友实时聊天</p>
+        </header>
+        
+        <div class="user-count">
+            当前在线: <span id="userCount">1</span> 人
+        </div>
+        
+        <div class="chat-container">
+            <div class="chat-history" id="chatHistory">
+                <!-- 聊天消息将在这里显示 -->
+                <div class="message welcome">
+                    <div class="message-header">
+                        <span>系统消息</span>
+                    </div>
+                    <div class="message-content">
+                        欢迎使用简易聊天室！开始聊天吧！
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="input-area">
+            <div class="form-group">
+                <label for="username">用户名</label>
+                <input type="text" id="username" placeholder="输入您的名字" value="访客">
+            </div>
+            
+            <div class="form-group">
+                <label for="message">消息内容</label>
+                <textarea id="message" placeholder="输入消息内容..."></textarea>
+            </div>
+            
+            <button id="sendBtn">发送消息</button>
+        </div>
+        
+        <footer>
+            <p>简易网页聊天室 &copy; 2023 | 消息实时更新</p>
+        </footer>
+    </div>
+
+    <script>
+        // DOM元素
+        const chatHistory = document.getElementById('chatHistory');
+        const usernameInput = document.getElementById('username');
+        const messageInput = document.getElementById('message');
+        const sendBtn = document.getElementById('sendBtn');
+        const userCountElement = document.getElementById('userCount');
+        
+        // 获取聊天记录
+        async function fetchMessages() {
+            try {
+                const response = await fetch('/messages');
+                const messages = await response.json();
+                
+                // 清空现有消息（除了欢迎消息）
+                const welcomeMessage = chatHistory.querySelector('.welcome');
+                chatHistory.innerHTML = '';
+                if (welcomeMessage) {
+                    chatHistory.appendChild(welcomeMessage);
+                }
+                
+                // 添加新消息
+                messages.forEach(msg => {
+                    addMessageToHistory(msg);
+                });
+                
+                // 滚动到底部
+                scrollToBottom();
+            } catch (error) {
+                console.error('获取消息失败:', error);
+            }
+        }
+        
+        // 添加消息到聊天历史
+        function addMessageToHistory(msg) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message');
+            
+            messageElement.innerHTML = `
+                <div class="message-header">
+                    <span>${msg.username}</span>
+                    <span class="timestamp">${msg.timestamp}</span>
+                </div>
+                <div class="message-content">${msg.message}</div>
+            `;
+            
+            chatHistory.appendChild(messageElement);
+        }
+        
+        // 发送新消息
+        async function sendMessage() {
+            const username = usernameInput.value.trim() || '匿名';
+            const message = messageInput.value.trim();
+            
+            if (!message) {
+                alert('请输入消息内容');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/send', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        message: message
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.status === 'success') {
+                    // 清空消息输入框
+                    messageInput.value = '';
+                } else {
+                    alert('发送失败: ' + result.message);
+                }
+            } catch (error) {
+                console.error('发送消息失败:', error);
+                alert('发送消息失败，请重试');
+            }
+        }
+        
+        // 滚动到底部
+        function scrollToBottom() {
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+        
+        // 模拟用户计数
+        function updateUserCount() {
+            const count = Math.floor(Math.random() * 10) + 1;
+            userCountElement.textContent = count;
+        }
+        
+        // 事件监听
+        sendBtn.addEventListener('click', sendMessage);
+        
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+        
+        // 初始化：获取消息并开始轮询
+        fetchMessages();
+        setInterval(fetchMessages, 2000); // 每2秒获取一次新消息
+        setInterval(updateUserCount, 10000); // 每10秒更新一次用户计数
+        
+        // 初始更新用户计数
+        updateUserCount();
+    </script>
+</body>
+</html>
