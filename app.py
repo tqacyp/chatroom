@@ -1,5 +1,5 @@
-# app.py - Flask服务端代码
-from flask import Flask, render_template, request
+# app.py - 修复后的服务端代码
+from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
 from datetime import datetime
 import threading
