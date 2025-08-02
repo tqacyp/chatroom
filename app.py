@@ -1,4 +1,3 @@
-# app.py - 修复后的服务端代码
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
 from datetime import datetime
@@ -6,7 +5,7 @@ import threading
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key'
-socketio = SocketIO(app, async_mode='threading')
+socketio = SocketIO(app, async_mode='threading', cors_allowed_origins="*")
 
 # 存储聊天记录
 chat_history = []
@@ -50,7 +49,7 @@ def handle_send_message(data):
         return
     
     # 创建带时间戳的消息
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    timestamp = datetime.now().strftime("%H:%M")
     new_message = {
         'username': username,
         'message': message,
@@ -65,4 +64,4 @@ def handle_send_message(data):
     emit('new_message', new_message, broadcast=True)
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+    socketio.run(app, host='192.168.31.10', port=5000, debug=True)
