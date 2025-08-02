@@ -1,39 +1,60 @@
+<!-- templates/chat.html - 前端页面 -->
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>简单网页聊天室</title>
+    <title>实时网页聊天室</title>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
     <style>
+        :root {
+            --primary-color: #4a6fa5;
+            --secondary-color: #6b8cae;
+            --light-color: #f0f4f8;
+            --dark-color: #2c3e50;
+            --success-color: #2ecc71;
+            --danger-color: #e74c3c;
+            --border-radius: 10px;
+            --box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            --transition: all 0.3s ease;
+        }
+        
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
         
         body {
-            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
             color: #333;
             line-height: 1.6;
-            padding: 20px;
             min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
         
         .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background-color: rgba(255, 255, 255, 0.9);
-            border-radius: 15px;
-            box-shadow: 0 5px 25px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 900px;
+            background-color: rgba(255, 255, 255, 0.95);
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 90vh;
         }
         
         header {
-            background: linear-gradient(to right, #4b6cb7, #182848);
+            background: linear-gradient(to right, var(--primary-color), var(--secondary-color));
             color: white;
             padding: 20px;
             text-align: center;
+            position: relative;
         }
         
         h1 {
@@ -41,10 +62,19 @@
             margin-bottom: 10px;
         }
         
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 20px;
+            background-color: var(--light-color);
+            border-bottom: 1px solid #ddd;
+            font-size: 0.9rem;
+        }
+        
         .chat-container {
             display: flex;
             flex-direction: column;
-            height: 70vh;
+            flex: 1;
         }
         
         .chat-history {
@@ -52,16 +82,18 @@
             padding: 20px;
             overflow-y: auto;
             background-color: #f8f9fa;
-            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
         }
         
         .message {
-            margin-bottom: 15px;
-            padding: 10px 15px;
-            border-radius: 10px;
-            background-color: white;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-            animation: fadeIn 0.3s ease-in-out;
+            max-width: 80%;
+            padding: 15px;
+            border-radius: var(--border-radius);
+            position: relative;
+            animation: fadeIn 0.3s ease;
+            word-wrap: break-word;
         }
         
         @keyframes fadeIn {
@@ -69,27 +101,44 @@
             to { opacity: 1; transform: translateY(0); }
         }
         
+        .message.sent {
+            align-self: flex-end;
+            background: linear-gradient(135deg, #d6e4ff, #b8d0ff);
+            border-bottom-right-radius: 0;
+        }
+        
+        .message.received {
+            align-self: flex-start;
+            background: linear-gradient(135deg, #ffffff, #f0f4f8);
+            border-bottom-left-radius: 0;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        
         .message-header {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 5px;
+            margin-bottom: 8px;
             font-weight: bold;
-            color: #4b6cb7;
+        }
+        
+        .username {
+            color: var(--primary-color);
         }
         
         .timestamp {
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             color: #777;
+            margin-left: 10px;
         }
         
         .message-content {
-            padding-left: 5px;
-            word-wrap: break-word;
+            line-height: 1.5;
         }
         
         .input-area {
             padding: 20px;
             background-color: white;
+            border-top: 1px solid #eee;
         }
         
         .form-group {
@@ -99,76 +148,84 @@
         label {
             display: block;
             margin-bottom: 5px;
-            font-weight: bold;
-            color: #182848;
+            font-weight: 600;
+            color: var(--dark-color);
         }
         
         input, textarea {
             width: 100%;
-            padding: 12px;
+            padding: 12px 15px;
             border: 1px solid #ddd;
-            border-radius: 8px;
+            border-radius: var(--border-radius);
             font-size: 1rem;
-            transition: border-color 0.3s;
+            transition: var(--transition);
         }
         
         input:focus, textarea:focus {
             outline: none;
-            border-color: #4b6cb7;
-            box-shadow: 0 0 0 2px rgba(75, 108, 183, 0.2);
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(74, 111, 165, 0.2);
         }
         
         textarea {
             height: 100px;
-            resize: vertical;
+            resize: none;
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 10px;
         }
         
         button {
-            background: linear-gradient(to right, #4b6cb7, #182848);
-            color: white;
+            flex: 1;
+            padding: 12px;
             border: none;
-            padding: 12px 25px;
+            border-radius: var(--border-radius);
             font-size: 1rem;
-            border-radius: 8px;
+            font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s;
-            width: 100%;
-            font-weight: bold;
-            letter-spacing: 1px;
+            transition: var(--transition);
         }
         
-        button:hover {
+        #sendBtn {
+            background: linear-gradient(to right, var(--primary-color), var(--secondary-color));
+            color: white;
+        }
+        
+        #sendBtn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
         }
         
-        button:active {
+        #sendBtn:active {
             transform: translateY(0);
         }
         
-        .user-count {
+        .system-message {
             text-align: center;
-            padding: 10px;
-            background-color: #e9ecef;
+            color: #777;
             font-size: 0.9rem;
-            color: #495057;
+            padding: 5px;
+            font-style: italic;
         }
         
-        footer {
+        .welcome {
             text-align: center;
-            padding: 15px;
-            color: #6c757d;
-            font-size: 0.9rem;
-            background-color: #f8f9fa;
+            padding: 20px;
+            background-color: #e8f4ff;
+            border-radius: var(--border-radius);
+            margin-bottom: 20px;
         }
         
-        @media (max-width: 600px) {
+        @media (max-width: 768px) {
             .container {
+                height: 95vh;
                 margin: 10px;
             }
             
-            .chat-container {
-                height: 65vh;
+            .message {
+                max-width: 90%;
             }
             
             h1 {
@@ -180,25 +237,26 @@
 <body>
     <div class="container">
         <header>
-            <h1>简易网页聊天室</h1>
-            <p>与朋友实时聊天</p>
+            <h1>实时网页聊天室</h1>
+            <p>基于WebSocket的即时通信</p>
         </header>
         
-        <div class="user-count">
-            当前在线: <span id="userCount">1</span> 人
+        <div class="status-bar">
+            <div class="connection-status">
+                状态: <span id="status">连接中...</span>
+            </div>
+            <div class="user-count">
+                在线用户: <span id="userCount">1</span> 人
+            </div>
         </div>
         
         <div class="chat-container">
             <div class="chat-history" id="chatHistory">
-                <!-- 聊天消息将在这里显示 -->
-                <div class="message welcome">
-                    <div class="message-header">
-                        <span>系统消息</span>
-                    </div>
-                    <div class="message-content">
-                        欢迎使用简易聊天室！开始聊天吧！
-                    </div>
+                <div class="welcome">
+                    <h3>欢迎使用实时聊天室</h3>
+                    <p>输入用户名和消息开始聊天，消息会实时推送给所有在线用户</p>
                 </div>
+                <!-- 聊天消息将在这里显示 -->
             </div>
         </div>
         
@@ -213,65 +271,75 @@
                 <textarea id="message" placeholder="输入消息内容..."></textarea>
             </div>
             
-            <button id="sendBtn">发送消息</button>
+            <div class="btn-group">
+                <button id="sendBtn">发送消息</button>
+            </div>
         </div>
-        
-        <footer>
-            <p>简易网页聊天室 &copy; 2023 | 消息实时更新</p>
-        </footer>
     </div>
 
     <script>
+        // 建立SocketIO连接
+        const socket = io();
+        
         // DOM元素
         const chatHistory = document.getElementById('chatHistory');
         const usernameInput = document.getElementById('username');
         const messageInput = document.getElementById('message');
         const sendBtn = document.getElementById('sendBtn');
         const userCountElement = document.getElementById('userCount');
+        const statusElement = document.getElementById('status');
         
-        // 获取聊天记录
-        async function fetchMessages() {
-            try {
-                const response = await fetch('/messages');
-                const messages = await response.json();
-                
-                // 清空现有消息（除了欢迎消息）
-                const welcomeMessage = chatHistory.querySelector('.welcome');
-                chatHistory.innerHTML = '';
-                if (welcomeMessage) {
-                    chatHistory.appendChild(welcomeMessage);
-                }
-                
-                // 添加新消息
-                messages.forEach(msg => {
-                    addMessageToHistory(msg);
-                });
-                
-                // 滚动到底部
-                scrollToBottom();
-            } catch (error) {
-                console.error('获取消息失败:', error);
-            }
-        }
+        // 连接状态
+        socket.on('connect', () => {
+            statusElement.textContent = '已连接';
+            statusElement.style.color = '#2ecc71';
+        });
+        
+        socket.on('disconnect', () => {
+            statusElement.textContent = '已断开';
+            statusElement.style.color = '#e74c3c';
+        });
+        
+        socket.on('connect_error', () => {
+            statusElement.textContent = '连接失败';
+            statusElement.style.color = '#e74c3c';
+        });
+        
+        // 监听新消息事件
+        socket.on('new_message', function(msg) {
+            addMessageToHistory(msg, false);
+        });
+        
+        // 监听用户数量更新
+        socket.on('user_count', function(data) {
+            userCountElement.textContent = data.count;
+        });
         
         // 添加消息到聊天历史
-        function addMessageToHistory(msg) {
+        function addMessageToHistory(msg, isSent) {
             const messageElement = document.createElement('div');
             messageElement.classList.add('message');
+            messageElement.classList.add(isSent ? 'sent' : 'received');
             
             messageElement.innerHTML = `
                 <div class="message-header">
-                    <span>${msg.username}</span>
+                    <span class="username">${msg.username}</span>
                     <span class="timestamp">${msg.timestamp}</span>
                 </div>
                 <div class="message-content">${msg.message}</div>
             `;
             
             chatHistory.appendChild(messageElement);
+            scrollToBottom();
+        }
+        
+        // 滚动到底部
+        function scrollToBottom() {
+            chatHistory.scrollTop = chatHistory.scrollHeight;
         }
         
         // 发送新消息
-        async function sendMessage() {
+        function sendMessage() {
             const username = usernameInput.value.trim() || '匿名';
             const message = messageInput.value.trim();
             
@@ -280,59 +348,43 @@
                 return;
             }
             
-            try {
-                const response = await fetch('/send', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        username: username,
-                        message: message
-                    })
-                });
-                
-                const result = await response.json();
-                if (result.status === 'success') {
-                    // 清空消息输入框
-                    messageInput.value = '';
-                } else {
-                    alert('发送失败: ' + result.message);
-                }
-            } catch (error) {
-                console.error('发送消息失败:', error);
-                alert('发送消息失败，请重试');
-            }
-        }
-        
-        // 滚动到底部
-        function scrollToBottom() {
-            chatHistory.scrollTop = chatHistory.scrollHeight;
-        }
-        
-        // 模拟用户计数
-        function updateUserCount() {
-            const count = Math.floor(Math.random() * 10) + 1;
-            userCountElement.textContent = count;
+            // 创建时间戳
+            const timestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            
+            // 在本地显示发送的消息
+            const localMsg = {
+                username: username,
+                message: message,
+                timestamp: timestamp
+            };
+            addMessageToHistory(localMsg, true);
+            
+            // 通过socket发送消息
+            socket.emit('send_message', {
+                username: username,
+                message: message
+            });
+            
+            // 清空消息输入框
+            messageInput.value = '';
+            messageInput.focus();
         }
         
         // 事件监听
         sendBtn.addEventListener('click', sendMessage);
         
-        messageInput.addEventListener('keypress', (e) => {
+        messageInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 sendMessage();
             }
         });
         
-        // 初始化：获取消息并开始轮询
-        fetchMessages();
-        setInterval(fetchMessages, 2000); // 每2秒获取一次新消息
-        setInterval(updateUserCount, 10000); // 每10秒更新一次用户计数
+        // 初始滚动到底部
+        scrollToBottom();
         
-        // 初始更新用户计数
-        updateUserCount();
+        // 初始聚焦到消息框
+        messageInput.focus();
     </script>
 </body>
 </html>

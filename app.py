@@ -1,28 +1,53 @@
-from flask import Flask, request, jsonify, render_template
+# app.py - Flask服务端代码
+from flask import Flask, render_template, request
+from flask_socketio import SocketIO, emit
 from datetime import datetime
 import threading
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = 'your_secret_key'
+socketio = SocketIO(app, async_mode='threading')
 
 # 存储聊天记录
 chat_history = []
-# 线程锁，确保多线程安全
+# 线程锁确保线程安全
 lock = threading.Lock()
+# 在线用户计数
+online_users = 0
 
 @app.route('/')
 def index():
     """渲染聊天室主页面"""
     return render_template('chat.html')
 
-@app.route('/send', methods=['POST'])
-def send_message():
-    """接收并存储新消息"""
-    data = request.json
+@socketio.on('connect')
+def handle_connect():
+    """处理新用户连接"""
+    global online_users
+    online_users += 1
+    # 更新所有客户端的在线用户数
+    emit('user_count', {'count': online_users}, broadcast=True)
+    # 发送历史消息给新连接的用户
+    with lock:
+        for msg in chat_history:
+            emit('new_message', msg)
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    """处理用户断开连接"""
+    global online_users
+    online_users -= 1
+    # 更新所有客户端的在线用户数
+    emit('user_count', {'count': online_users}, broadcast=True)
+
+@socketio.on('send_message')
+def handle_send_message(data):
+    """处理新消息"""
     username = data.get('username', '匿名')
     message = data.get('message', '')
     
     if not message:
-        return jsonify({'status': 'error', 'message': '消息不能为空'}), 400
+        return
     
     # 创建带时间戳的消息
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -32,18 +57,12 @@ def send_message():
         'timestamp': timestamp
     }
     
-    # 使用锁确保线程安全
+    # 保存消息
     with lock:
         chat_history.append(new_message)
     
-    return jsonify({'status': 'success', 'message': '消息已发送'})
-
-@app.route('/messages')
-def get_messages():
-    """获取所有聊天记录"""
-    # 使用锁确保线程安全
-    with lock:
-        return jsonify(chat_history)
+    # 广播新消息给所有客户端
+    emit('new_message', new_message, broadcast=True)
 
 if __name__ == '__main__':
-    app.run(host='192.168.31.10', port=5000, debug=True)
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
