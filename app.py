@@ -40,6 +40,8 @@ create_tables()
 
 # 存储聊天记录
 chat_history = []
+# 记录最后保存的消息索引
+last_saved_index = 0
 # 线程锁确保线程安全
 lock = threading.Lock()
 # 在线用户计数
@@ -63,22 +65,27 @@ def get_client_ip():
 
 def save_chat_history():
     """保存聊天记录到文件"""
+    global last_saved_index
     while True:
-        time.sleep(60)  # 每10分钟保存一次
+        time.sleep(60)  # 每1分钟保存一次
         
         with lock:
-            if not chat_history:
+            if not chat_history or last_saved_index >= len(chat_history):
                 continue
             
+            # 获取新消息
+            new_messages = chat_history[last_saved_index:]
+            if not new_messages:
+                continue
+                
             # 创建文件名
             timestamp = datetime.now().strftime("%Y%m%d_%H%M")
             filename = f"data/chat_history_{timestamp}.json"
             
             try:
-                # 创建聊天记录副本
+                # 创建新消息的可序列化副本
                 history_copy = []
-                for msg in chat_history:
-                    # 创建消息对象的可序列化副本
+                for msg in new_messages:
                     msg_copy = {
                         'user_id': msg.get('user_id', 'guest'),
                         'username': msg.get('username', 'Guest'),
@@ -92,10 +99,39 @@ def save_chat_history():
                 # 保存到文件
                 with open(filename, 'w', encoding='utf-8') as f:
                     json.dump(history_copy, f, ensure_ascii=False, indent=2)
+                    
+                # 更新已保存的索引
+                last_saved_index = len(chat_history)
                 
                 print(f"聊天记录已保存到: {filename}")
             except Exception as e:
                 print(f"保存聊天记录失败: {str(e)}")
+
+def load_chat_history():
+    """从文件加载历史聊天记录"""
+    global chat_history
+    try:
+        # 获取data目录下所有聊天记录文件
+        history_files = sorted([f for f in os.listdir('data') if f.startswith('chat_history_')])
+        loaded_messages = []
+        
+        # 按时间顺序读取所有文件
+        for filename in history_files:
+            file_path = os.path.join('data', filename)
+            with open(file_path, 'r', encoding='utf-8') as f:
+                messages = json.load(f)
+                loaded_messages.extend(messages)
+        
+        # 根据时间戳排序并添加到聊天记录
+        if loaded_messages:
+            loaded_messages.sort(key=lambda x: x['timestamp'])
+            chat_history.extend(loaded_messages)
+            print(f"已加载 {len(loaded_messages)} 条历史消息")
+    except Exception as e:
+        print(f"加载聊天记录失败: {str(e)}")
+
+# 启动时加载历史记录
+load_chat_history()
 
 # 启动后台保存线程
 save_thread = threading.Thread(target=save_chat_history, daemon=True)

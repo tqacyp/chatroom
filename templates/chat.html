@@ -11,8 +11,7 @@
             margin: 0;
             padding: 0;
             -webkit-tap-highlight-color: transparent;
-        }
-        
+        } 
         :root {
             --primary-color: #4361ee;
             --secondary-color: #3f37c9;
@@ -463,7 +462,9 @@
             <h3>欢迎使用全屏聊天室</h3>
             <p>{% if is_guest %}您的用户名已自动设置为IP地址{% else %}您已登录{% endif %}，消息会实时推送给所有在线用户</p>
         </div>
-        <!-- 聊天消息将在这里显示 -->
+        
+        <!-- 消息容器 -->
+        <div id="messageContainer"></div>
         
         <!-- 底部缓冲空间 -->
         <div class="buffer-space"></div>
@@ -504,13 +505,53 @@
     <script>
         // 建立SocketIO连接
         const socket = io();
+        let hasInitialHistory = false;
+        let reconnecting = false;
         
         // DOM元素
         const chatHistory = document.getElementById('chatHistory');
+        const messageContainer = document.getElementById('messageContainer');
         const messageInput = document.getElementById('message');
+        const statusElement = document.getElementById('status');
+        
+        // 重连处理
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            if (!hasInitialHistory) {
+                // 只在第一次连接时请求历史记录
+                socket.emit('request_history');
+                hasInitialHistory = true;
+            }
+        });
+        
+        socket.on('chat_history', (history) => {
+            // 清空现有消息
+            messageContainer.innerHTML = '';
+            // 添加历史消息
+            history.forEach(msg => {
+                appendMessage(msg);
+            });
+            scrollToBottom();
+        });
+        
+        function appendMessage(msg) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${msg.user_id === socket.id ? 'sent' : 'received'}`;
+            messageDiv.innerHTML = `
+                <div class="message-header">
+                    <span class="username">${msg.display_name || msg.username}</span>
+                    <span class="timestamp">${new Date(msg.timestamp).toLocaleTimeString()}</span>
+                </div>
+                <div class="message-content">${msg.message}</div>
+            `;
+            messageContainer.appendChild(messageDiv);
+        }
+        
+        function scrollToBottom() {
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
         const sendBtn = document.getElementById('sendBtn');
         const userCountElement = document.getElementById('userCount');
-        const statusElement = document.getElementById('status');
         const displayNameInput = document.getElementById('display_name');
         const saveNotice = document.getElementById('saveNotice');
         
@@ -526,27 +567,41 @@
             }
         });
         
-        // 连接状态
+        // 连接状态处理
         socket.on('connect', () => {
             statusElement.textContent = '已连接';
             statusElement.style.color = '#2ecc71';
+            
+            if (!hasInitialHistory) {
+                // 首次连接，请求历史记录
+                socket.emit('request_history');
+                hasInitialHistory = true;
+            } else if (reconnecting) {
+                // 重连成功
+                reconnecting = false;
+                statusElement.textContent = '已连接';
+            }
         });
         
         socket.on('disconnect', () => {
             statusElement.textContent = '已断开';
             statusElement.style.color = '#f72585';
+            reconnecting = true;
         });
         
         socket.on('connect_error', () => {
             statusElement.textContent = '连接失败';
             statusElement.style.color = '#f72585';
+            reconnecting = true;
         });
         
         // 监听新消息事件
         socket.on('new_message', function(msg) {
-            const currentUsername = actualUsername;
-            const isSent = msg.username === currentUsername;
-            addMessageToHistory(msg, isSent);
+            if (!reconnecting) { // 只有在非重连状态下才添加新消息
+                const currentUsername = actualUsername;
+                const isSent = msg.username === currentUsername;
+                appendMessage(msg);
+            }
         });
         
         // 监听用户数量更新
@@ -568,30 +623,6 @@
             setTimeout(() => {
                 saveNotice.style.animation = 'fadeOut 3s forwards';
             }, 3000);
-        }
-        
-        // 添加消息到聊天历史
-        function addMessageToHistory(msg, isSent) {
-            const messageElement = document.createElement('div');
-            messageElement.classList.add('message');
-            messageElement.classList.add(isSent ? 'sent' : 'received');
-            
-            // 添加游客标识
-            let guestBadge = '';
-            if (msg.is_guest) {
-                guestBadge = '<span class="guest-badge">(游客)</span>';
-            }
-            
-            messageElement.innerHTML = `
-                <div class="message-header">
-                    <span class="username">${msg.display_name} ${guestBadge}</span>
-                    <span class="timestamp">${msg.timestamp}</span>
-                </div>
-                <div class="message-content">${msg.message}</div>
-            `;
-            
-            chatHistory.appendChild(messageElement);
-            scrollToBottom();
         }
         
         // 滚动到底部
