@@ -129,7 +129,7 @@ def load_chat_history():
             print(f"已加载 {len(loaded_messages)} 条历史消息")
     except Exception as e:
         print(f"加载聊天记录失败: {str(e)}")
-
+        
 # 启动时加载历史记录
 load_chat_history()
 
