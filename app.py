@@ -1,8 +1,10 @@
 import os
-from flask import Flask, render_template, request, session, redirect, url_for, flash
-from flask_socketio import SocketIO, emit, join_room, leave_room
-from datetime import datetime
+import json
 import threading
+import time
+from datetime import datetime
+from flask import Flask, render_template, request, session, redirect, url_for, flash
+from flask_socketio import SocketIO, emit
 import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -16,19 +18,11 @@ app.config['DATABASE'] = 'data/chat_users.db'
 socketio = SocketIO(app, async_mode='threading', cors_allowed_origins="*")
 
 # 初始化数据库
-def init_db():
-    with app.app_context():
-        db = get_db()
-        with app.open_resource('schema.sql', mode='r') as f:
-            db.cursor().executescript(f.read())
-        db.commit()
-
 def get_db():
     db = sqlite3.connect(app.config['DATABASE'])
     db.row_factory = sqlite3.Row
     return db
 
-# 创建数据库表
 def create_tables():
     db = get_db()
     db.execute('''
@@ -67,14 +61,60 @@ def get_client_ip():
     
     return ip
 
+def save_chat_history():
+    """保存聊天记录到文件"""
+    while True:
+        time.sleep(60)  # 每10分钟保存一次
+        
+        with lock:
+            if not chat_history:
+                continue
+            
+            # 创建文件名
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+            filename = f"data/chat_history_{timestamp}.json"
+            
+            try:
+                # 创建聊天记录副本
+                history_copy = []
+                for msg in chat_history:
+                    # 创建消息对象的可序列化副本
+                    msg_copy = {
+                        'user_id': msg.get('user_id', 'guest'),
+                        'username': msg.get('username', 'Guest'),
+                        'display_name': msg.get('display_name', 'Guest'),
+                        'message': msg['message'],
+                        'timestamp': msg['timestamp'],
+                        'ip': msg.get('ip', '')
+                    }
+                    history_copy.append(msg_copy)
+                
+                # 保存到文件
+                with open(filename, 'w', encoding='utf-8') as f:
+                    json.dump(history_copy, f, ensure_ascii=False, indent=2)
+                
+                print(f"聊天记录已保存到: {filename}")
+            except Exception as e:
+                print(f"保存聊天记录失败: {str(e)}")
+
+# 启动后台保存线程
+save_thread = threading.Thread(target=save_chat_history, daemon=True)
+save_thread.start()
+
 @app.route('/')
 def index():
     """首页，根据登录状态重定向"""
-    if 'user_id' in session:
-        # 获取客户端真实IP地址
-        client_ip = get_client_ip()
-        return render_template('chat.html', client_ip=client_ip, username=session['username'])
-    return redirect(url_for('login'))
+    client_ip = get_client_ip()
+    
+    # 游客模式处理
+    if 'user_id' not in session:
+        session['is_guest'] = True
+        session['guest_ip'] = client_ip
+        session['username'] = f"游客-{client_ip[-4:]}"
+        return render_template('chat.html', client_ip=client_ip, username=session['username'], is_guest=True)
+    
+    # 登录用户处理
+    return render_template('chat.html', client_ip=client_ip, username=session['username'], is_guest=False)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -91,6 +131,8 @@ def login():
         if user and check_password_hash(user['password'], password):
             session['user_id'] = user['id']
             session['username'] = user['username']
+            session.pop('is_guest', None)
+            session.pop('guest_ip', None)
             return redirect(url_for('index'))
         else:
             flash('用户名或密码错误', 'error')
@@ -128,7 +170,9 @@ def logout():
     """注销登录"""
     session.pop('user_id', None)
     session.pop('username', None)
-    return redirect(url_for('login'))
+    session.pop('is_guest', None)
+    session.pop('guest_ip', None)
+    return redirect(url_for('index'))
 
 @socketio.on('connect')
 def handle_connect():
@@ -136,13 +180,27 @@ def handle_connect():
     global online_users
     online_users += 1
     
-    if 'user_id' in session:
+    client_ip = get_client_ip()
+    
+    # 游客模式处理
+    if session.get('is_guest'):
+        user_id = f"guest-{client_ip}"
+        username = session.get('username', f"游客-{client_ip[-4:]}")
+        online_users_list[request.sid] = {
+            'user_id': user_id,
+            'username': username,
+            'ip': client_ip,
+            'is_guest': True
+        }
+    # 登录用户处理
+    elif 'user_id' in session:
         user_id = session['user_id']
         username = session['username']
         online_users_list[request.sid] = {
             'user_id': user_id,
             'username': username,
-            'ip': get_client_ip()
+            'ip': client_ip,
+            'is_guest': False
         }
     
     # 更新所有客户端的在线用户数
@@ -168,27 +226,38 @@ def handle_disconnect():
 @socketio.on('send_message')
 def handle_send_message(data):
     """处理新消息"""
-    if 'user_id' not in session:
-        return
-    
-    message = data.get('message', '')
+    client_ip = get_client_ip()
     display_name = data.get('display_name', '')
+    message = data.get('message', '')
     
     if not message:
         return
     
     # 获取用户信息
-    user_id = session['user_id']
-    username = session['username']
+    if session.get('is_guest'):
+        user_id = f"guest-{client_ip}"
+        username = session.get('username', f"游客-{client_ip[-4:]}")
+    elif 'user_id' in session:
+        user_id = session['user_id']
+        username = session['username']
+    else:
+        # 未登录且不是游客（理论上不会发生）
+        user_id = f"guest-{client_ip}"
+        username = f"游客-{client_ip[-4:]}"
+    
+    # 使用显示名称或用户名
+    final_display_name = display_name if display_name else username
     
     # 创建带时间戳的消息（使用月-日 时:分格式）
     timestamp = datetime.now().strftime("%m-%d %H:%M")
     new_message = {
         'user_id': user_id,
         'username': username,
-        'display_name': display_name if display_name else username,
+        'display_name': final_display_name,
         'message': message,
-        'timestamp': timestamp
+        'timestamp': timestamp,
+        'ip': client_ip,
+        'is_guest': session.get('is_guest', True)
     }
     
     # 保存消息

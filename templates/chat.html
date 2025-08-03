@@ -379,12 +379,54 @@
             font-size: 0.95rem;
             background: white;
         }
+        /* 新增游客提示样式 */
+        .guest-notice {
+            background-color: #fff3cd;
+            color: #856404;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+        
+        .guest-notice a {
+            color: #007bff;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        
+        .guest-notice a:hover {
+            text-decoration: underline;
+        }
+        
+        /* 保存提示样式 */
+        .save-notice {
+            position: fixed;
+            bottom: 150px;
+            right: 20px;
+            background: rgba(40, 167, 69, 0.9);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            display: none;
+            animation: fadeOut 3s forwards;
+        }
+        
+        @keyframes fadeOut {
+            0% { opacity: 1; }
+            70% { opacity: 1; }
+            100% { opacity: 0; display: none; }
+        }
     </style>
 </head>
 <body>
     <!-- 顶部状态栏 -->
     <div class="status-bar">
-        <h1>tqacyp的聊天室</h1>
+        <h1>全屏实时聊天室</h1>
         <div class="status-info">
             <div class="connection-status">
                 状态: <span id="status">连接中...</span>
@@ -394,31 +436,45 @@
             </div>
         </div>
     </div>
-
-    <!-- 在顶部状态栏后添加用户信息区域 -->
+    
+    <!-- 用户信息区域 -->
     <div class="user-info">
         <div class="logged-in-user">
-            当前用户: <strong>{{ username }}</strong>
-            <a href="{{ url_for('logout') }}" class="logout-btn">退出</a>
+            {% if is_guest %}
+                游客模式: <strong>{{ username }}</strong>
+            {% else %}
+                当前用户: <strong>{{ username }}</strong>
+            {% endif %}
+            <a href="{{ url_for('logout') }}" class="logout-btn">{% if is_guest %}切换账号{% else %}退出{% endif %}</a>
         </div>
     </div>
     
     <!-- 聊天记录区域 -->
     <div class="chat-history" id="chatHistory">
+        <!-- 游客提示 -->
+        {% if is_guest %}
+        <div class="guest-notice">
+            您当前处于游客模式，消息将使用您的IP地址标识。
+            <a href="{{ url_for('login') }}">登录账号</a> 或 <a href="{{ url_for('register') }}">注册新账号</a> 以获得更好体验。
+        </div>
+        {% endif %}
+        
         <div class="welcome">
-            <h3>欢迎来到小聊天室</h3>
-            <p>您的用户名已默认设置为IP地址，可以随时修改</p>
-            <p>很遗憾，因为作者很懒，没有做保存聊天记录的功能，所有聊天记录都将在服务器（也就是我的电脑）关机后删除</p>
-            <p>也不支持图片或文件</p>
-            <p>未来会考虑添加的qwq</p>
+            <h3>欢迎使用全屏聊天室</h3>
+            <p>{% if is_guest %}您的用户名已自动设置为IP地址{% else %}您已登录{% endif %}，消息会实时推送给所有在线用户</p>
         </div>
         <!-- 聊天消息将在这里显示 -->
         
-        <!-- 底部缓冲空间（修复滑动问题） -->
+        <!-- 底部缓冲空间 -->
         <div class="buffer-space"></div>
     </div>
     
-    <!-- 修改输入区域 -->
+    <!-- 保存提示 -->
+    <div class="save-notice" id="saveNotice">
+        聊天记录已自动保存
+    </div>
+
+    <!-- 输入区域 -->
     <div class="input-area">
         <div class="form-row">
             <div class="display-name-container">
@@ -433,6 +489,18 @@
         </div>
     </div>
 
+    <!-- 聊天记录区域
+    <div class="chat-history" id="chatHistory">
+        <div class="welcome">
+            <h3>欢迎来到小聊天室</h3>
+            <p>您的用户名已默认设置为IP地址，可以随时修改</p>
+            <p>很遗憾，因为作者很懒，没有做保存聊天记录的功能，所有聊天记录都将在服务器（也就是我的电脑）关机后删除</p>
+            <p>也不支持图片或文件</p>
+            <p>未来会考虑添加的qwq</p>
+        </div>
+        <div class="buffer-space"></div>
+    </div> -->
+
     <script>
         // 建立SocketIO连接
         const socket = io();
@@ -444,9 +512,11 @@
         const userCountElement = document.getElementById('userCount');
         const statusElement = document.getElementById('status');
         const displayNameInput = document.getElementById('display_name');
+        const saveNotice = document.getElementById('saveNotice');
         
         // 从服务端获取实际用户名
         const actualUsername = "{{ username }}";
+        const isGuest = {{ 'true' if is_guest else 'false' }};
         
         // 在页面加载时设置显示名称
         document.addEventListener('DOMContentLoaded', function() {
@@ -474,7 +544,7 @@
         
         // 监听新消息事件
         socket.on('new_message', function(msg) {
-            const currentUsername = displayNameInput.value.trim() || '匿名';
+            const currentUsername = actualUsername;
             const isSent = msg.username === currentUsername;
             addMessageToHistory(msg, isSent);
         });
@@ -484,15 +554,37 @@
             userCountElement.textContent = data.count;
         });
         
+        // 监听保存通知
+        socket.on('save_notification', function() {
+            showSaveNotice();
+        });
+        
+        // 显示保存通知
+        function showSaveNotice() {
+            saveNotice.style.display = 'block';
+            saveNotice.style.opacity = '1';
+            
+            // 3秒后开始淡出
+            setTimeout(() => {
+                saveNotice.style.animation = 'fadeOut 3s forwards';
+            }, 3000);
+        }
+        
         // 添加消息到聊天历史
         function addMessageToHistory(msg, isSent) {
             const messageElement = document.createElement('div');
             messageElement.classList.add('message');
             messageElement.classList.add(isSent ? 'sent' : 'received');
             
+            // 添加游客标识
+            let guestBadge = '';
+            if (msg.is_guest) {
+                guestBadge = '<span class="guest-badge">(游客)</span>';
+            }
+            
             messageElement.innerHTML = `
                 <div class="message-header">
-                    <span class="username">${msg.username}</span>
+                    <span class="username">${msg.display_name} ${guestBadge}</span>
                     <span class="timestamp">${msg.timestamp}</span>
                 </div>
                 <div class="message-content">${msg.message}</div>
@@ -511,7 +603,7 @@
         
         // 发送新消息
         function sendMessage() {
-            const display_name = document.getElementById('display_name').value.trim() || displayNameInput.value;
+            const display_name = displayNameInput.value.trim() || actualUsername;
             const message = messageInput.value.trim();
             
             if (!message) {
@@ -529,7 +621,7 @@
             messageInput.value = '';
             messageInput.focus();
         }
-            
+        
         // 事件监听
         sendBtn.addEventListener('click', sendMessage);
         
@@ -569,6 +661,20 @@
         adjustChatHeight();
         // 窗口大小变化时重新调整
         window.addEventListener('resize', adjustChatHeight);
+        
+        // 添加游客标识样式
+        const style = document.createElement('style');
+        style.innerHTML = `
+            .guest-badge {
+                font-size: 0.7rem;
+                background: #ffc107;
+                color: #333;
+                padding: 2px 6px;
+                border-radius: 10px;
+                margin-left: 5px;
+            }
+        `;
+        document.head.appendChild(style);
     </script>
 </body>
 </html>
