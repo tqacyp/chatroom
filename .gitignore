@@ -1,0 +1,4 @@
+__pycache__/
+# Byte-compiled / optimized / DLL files
+data/
+# This directory contains data files used by the application.

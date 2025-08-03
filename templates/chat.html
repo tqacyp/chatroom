@@ -329,6 +329,56 @@
                 padding: 8px 10px;
             }
         }
+        .user-info {
+            padding: 10px 16px;
+            background-color: rgba(255, 255, 255, 0.92);
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logged-in-user {
+            font-size: 0.9rem;
+            color: #333;
+        }
+        
+        .logout-btn {
+            margin-left: 10px;
+            padding: 4px 10px;
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            color: #f44336;
+            text-decoration: none;
+            font-size: 0.8rem;
+        }
+        
+        .logout-btn:hover {
+            background-color: #f44336;
+            color: white;
+        }
+        
+        .display-name-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+        }
+        
+        .display-name-container label {
+            margin-bottom: 0;
+            white-space: nowrap;
+        }
+        
+        #display_name {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            background: white;
+        }
     </style>
 </head>
 <body>
@@ -342,6 +392,14 @@
             <div class="user-count">
                 在线: <span id="userCount">1</span>人
             </div>
+        </div>
+    </div>
+
+    <!-- 在顶部状态栏后添加用户信息区域 -->
+    <div class="user-info">
+        <div class="logged-in-user">
+            当前用户: <strong>{{ username }}</strong>
+            <a href="{{ url_for('logout') }}" class="logout-btn">退出</a>
         </div>
     </div>
     
@@ -360,14 +418,17 @@
         <div class="buffer-space"></div>
     </div>
     
-    <!-- 输入区域 -->
+    <!-- 修改输入区域 -->
     <div class="input-area">
         <div class="form-row">
-            <input type="text" id="username" placeholder="用户名" value="{{ client_ip }}">
+            <div class="display-name-container">
+                <label for="display_name">显示名称:</label>
+                <input type="text" id="display_name" placeholder="输入显示名称" value="{{ username }}">
+            </div>
         </div>
         
         <div class="message-input-container">
-            <textarea id="message" placeholder="说点话..."></textarea>
+            <textarea id="message" placeholder="输入消息内容..."></textarea>
             <button id="sendBtn">➤</button>
         </div>
     </div>
@@ -378,11 +439,22 @@
         
         // DOM元素
         const chatHistory = document.getElementById('chatHistory');
-        const usernameInput = document.getElementById('username');
         const messageInput = document.getElementById('message');
         const sendBtn = document.getElementById('sendBtn');
         const userCountElement = document.getElementById('userCount');
         const statusElement = document.getElementById('status');
+        const displayNameInput = document.getElementById('display_name');
+        
+        // 从服务端获取实际用户名
+        const actualUsername = "{{ username }}";
+        
+        // 在页面加载时设置显示名称
+        document.addEventListener('DOMContentLoaded', function() {
+            // 如果显示名称为空，设置为实际用户名
+            if (!displayNameInput.value) {
+                displayNameInput.value = actualUsername;
+            }
+        });
         
         // 连接状态
         socket.on('connect', () => {
@@ -402,7 +474,7 @@
         
         // 监听新消息事件
         socket.on('new_message', function(msg) {
-            const currentUsername = usernameInput.value.trim() || '匿名';
+            const currentUsername = displayNameInput.value.trim() || '匿名';
             const isSent = msg.username === currentUsername;
             addMessageToHistory(msg, isSent);
         });
@@ -439,7 +511,7 @@
         
         // 发送新消息
         function sendMessage() {
-            const username = usernameInput.value.trim() || '匿名';
+            const display_name = document.getElementById('display_name').value.trim() || displayNameInput.value;
             const message = messageInput.value.trim();
             
             if (!message) {
@@ -449,7 +521,7 @@
             
             // 通过socket发送消息
             socket.emit('send_message', {
-                username: username,
+                display_name: display_name,
                 message: message
             });
             
@@ -457,7 +529,7 @@
             messageInput.value = '';
             messageInput.focus();
         }
-        
+            
         // 事件监听
         sendBtn.addEventListener('click', sendMessage);
         
