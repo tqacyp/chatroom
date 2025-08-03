@@ -80,9 +80,15 @@
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 16px;
             -webkit-overflow-scrolling: touch;
             padding-bottom: 150px; /* 增加底部内边距修复滑动问题 */
+        }
+        
+        #messageContainer {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
         }
         
         .welcome {
@@ -92,7 +98,6 @@
             border-radius: var(--border-radius);
             margin-bottom: 20px;
             backdrop-filter: blur(5px);
-            padding-top: 50px;
         }
         
         .welcome h3 {
@@ -103,6 +108,7 @@
         
         .message {
             max-width: 85%;
+            width: fit-content;
             padding: 12px 16px;
             border-radius: 18px;
             position: relative;
@@ -110,6 +116,7 @@
             word-wrap: break-word;
             font-size: 1rem;
             line-height: 1.4;
+            margin-bottom: 8px;
         }
         
         @keyframes fadeIn {
@@ -425,13 +432,13 @@
 <body>
     <!-- 顶部状态栏 -->
     <div class="status-bar">
-        <h1>全屏实时聊天室</h1>
+        <h1>tqacyp的聊天室</h1>
         <div class="status-info">
             <div class="connection-status">
                 状态: <span id="status">连接中...</span>
             </div>
             <div class="user-count">
-                在线: <span id="userCount">1</span>人
+                别信，有bug→在线: <span id="userCount">1</span>人
             </div>
         </div>
     </div>
@@ -444,7 +451,7 @@
             {% else %}
                 当前用户: <strong>{{ username }}</strong>
             {% endif %}
-            <a href="{{ url_for('logout') }}" class="logout-btn">{% if is_guest %}切换账号{% else %}退出{% endif %}</a>
+            <a href="{{ url_for('logout') }}" class="logout-btn">{% if is_guest %}没有b用的按钮{% else %}退出{% endif %}</a>
         </div>
     </div>
     
@@ -459,8 +466,9 @@
         {% endif %}
         
         <div class="welcome">
-            <h3>欢迎使用全屏聊天室</h3>
-            <p>{% if is_guest %}您的用户名已自动设置为IP地址{% else %}您已登录{% endif %}，消息会实时推送给所有在线用户</p>
+            <h3>欢迎来到tqacyp的聊天室!</h3>
+            <p>{% if is_guest %}您的用户名已默认设置为IP地址，可以随时修改{% else %}您已登录{% endif %}，消息会自动保存</p>
+            <p>目前暂时不支持图片或文件，有需求请手动挂载外部链接</p>
         </div>
         
         <!-- 消息容器 -->
@@ -540,7 +548,7 @@
             messageDiv.innerHTML = `
                 <div class="message-header">
                     <span class="username">${msg.display_name || msg.username}</span>
-                    <span class="timestamp">${new Date(msg.timestamp).toLocaleTimeString()}</span>
+                    <span class="timestamp">${msg.timestamp}</span>
                 </div>
                 <div class="message-content">${msg.message}</div>
             `;

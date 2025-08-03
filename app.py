@@ -67,7 +67,7 @@ def save_chat_history():
     """保存聊天记录到文件"""
     global last_saved_index
     while True:
-        time.sleep(60)  # 每1分钟保存一次
+        time.sleep(600)  # 每10分钟保存一次
         
         with lock:
             if not chat_history or last_saved_index >= len(chat_history):
@@ -146,7 +146,7 @@ def index():
     if 'user_id' not in session:
         session['is_guest'] = True
         session['guest_ip'] = client_ip
-        session['username'] = f"游客-{client_ip[-4:]}"
+        session['username'] = f"游客-{client_ip[:]}"
         return render_template('chat.html', client_ip=client_ip, username=session['username'], is_guest=True)
     
     # 登录用户处理
@@ -221,7 +221,7 @@ def handle_connect():
     # 游客模式处理
     if session.get('is_guest'):
         user_id = f"guest-{client_ip}"
-        username = session.get('username', f"游客-{client_ip[-4:]}")
+        username = session.get('username', f"游客-{client_ip[:]}")
         online_users_list[request.sid] = {
             'user_id': user_id,
             'username': username,
@@ -272,14 +272,14 @@ def handle_send_message(data):
     # 获取用户信息
     if session.get('is_guest'):
         user_id = f"guest-{client_ip}"
-        username = session.get('username', f"游客-{client_ip[-4:]}")
+        username = session.get('username', f"游客-{client_ip[:]}")
     elif 'user_id' in session:
         user_id = session['user_id']
         username = session['username']
     else:
         # 未登录且不是游客（理论上不会发生）
         user_id = f"guest-{client_ip}"
-        username = f"游客-{client_ip[-4:]}"
+        username = f"游客-{client_ip[:]}"
     
     # 使用显示名称或用户名
     final_display_name = display_name if display_name else username
@@ -304,4 +304,4 @@ def handle_send_message(data):
     emit('new_message', new_message, broadcast=True)
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+    socketio.run(app, host='192.168.31.10', port=5000, debug=False)
