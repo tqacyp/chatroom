@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>国际象棋棋盘 - 带棋子</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #1a2a6c);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+        }
+        
+        .container {
+            text-align: center;
+            max-width: 800px;
+            padding: 30px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+        }
+        
+        h1 {
+            color: #fff;
+            margin-bottom: 20px;
+            font-size: 2.8rem;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+            letter-spacing: 2px;
+        }
+        
+        .description {
+            color: #e0e0e0;
+            max-width: 600px;
+            margin: 0 auto 30px;
+            font-size: 1.1rem;
+            line-height: 1.6;
+        }
+        
+        .chessboard-container {
+            position: relative;
+            display: inline-block;
+            margin: 20px 0;
+        }
+        
+        .chessboard {
+            display: grid;
+            grid-template-columns: repeat(8, 60px);
+            grid-template-rows: repeat(8, 60px);
+            border: 12px solid #5d4037;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .square {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            position: relative;
+        }
+        
+        .light {
+            background-color: #f0d9b5;
+        }
+        
+        .dark {
+            background-color: #b58863;
+        }
+        
+        /* 坐标标记样式 */
+        .coordinates {
+            position: absolute;
+            color: #fff;
+            font-size: 14px;
+            font-weight: bold;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+            z-index: 10;
+        }
+        
+        .file-coordinates {
+            display: flex;
+            position: absolute;
+            bottom: -25px;
+            left: 0;
+            width: 100%;
+            justify-content: space-around;
+        }
+        
+        .rank-coordinates {
+            position: absolute;
+            right: -20px;
+            top: 0;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+        }
+        
+        /* 装饰元素 */
+        .corner {
+            position: absolute;
+            width: 15px;
+            height: 15px;
+            background: #5d4037;
+        }
+        
+        .corner-tl {
+            top: -12px;
+            left: -12px;
+        }
+        
+        .corner-tr {
+            top: -12px;
+            right: -12px;
+        }
+        
+        .corner-bl {
+            bottom: -12px;
+            left: -12px;
+        }
+        
+        .corner-br {
+            bottom: -12px;
+            right: -12px;
+        }
+        
+        /* 棋盘标签 */
+        .label {
+            position: absolute;
+            color: #fff;
+            font-size: 12px;
+            font-weight: bold;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+        }
+        
+        .label-white {
+            bottom: 10px;
+            left: 10px;
+        }
+        
+        .label-black {
+            top: 10px;
+            right: 10px;
+        }
+        
+        .features {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+        
+        .feature {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            width: 180px;
+            margin: 10px;
+        }
+        
+        .feature h3 {
+            color: #ffcc00;
+            margin-bottom: 10px;
+        }
+        
+        .feature p {
+            color: #e0e0e0;
+            font-size: 0.9rem;
+        }
+        
+        /* ============= 新增棋子样式 ============= */
+        .piece {
+            width: 50px;
+            height: 50px;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            z-index: 20;
+            transition: transform 0.2s;
+        }
+        
+        .piece:hover {
+            transform: scale(1.1);
+            cursor: pointer;
+        }
+        /* ====================================== */
+        
+        @media (max-width: 600px) {
+            .square {
+                width: 40px;
+                height: 40px;
+                font-size: 30px;
+            }
+            
+            .chessboard {
+                grid-template-columns: repeat(8, 40px);
+                grid-template-rows: repeat(8, 40px);
+            }
+            
+            .piece {
+                width: 35px;
+                height: 35px;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>国际象棋棋盘</h1>
+        <p class="description">标准国际象棋棋盘实现，已添加棋子（无移动功能）。白方在底部，黑方在顶部。</p>
+        
+        <div class="chessboard-container">
+            <!-- 棋盘装饰角 -->
+            <div class="corner corner-tl"></div>
+            <div class="corner corner-tr"></div>
+            <div class="corner corner-bl"></div>
+            <div class="corner corner-br"></div>
+            
+            <!-- 棋盘标签 -->
+            <div class="label label-white">白方</div>
+            <div class="label label-black">黑方</div>
+            
+            <!-- 棋盘主体 -->
+            <div class="chessboard" id="board">
+                <!-- 棋盘格子将由JS生成 -->
+            </div>
+            
+            <!-- 文件坐标标记 (a-h) -->
+            <div class="coordinates file-coordinates">
+                <span>a</span><span>b</span><span>c</span><span>d</span>
+                <span>e</span><span>f</span><span>g</span><span>h</span>
+            </div>
+            
+            <!-- 横坐标标记 (1-8) -->
+            <div class="coordinates rank-coordinates">
+                <span>8</span><span>7</span><span>6</span><span>5</span>
+                <span>4</span><span>3</span><span>2</span><span>1</span>
+            </div>
+        </div>
+        
+        <div class="features">
+            <div class="feature">
+                <h3>完整棋子</h3>
+                <p>32个棋子按标准国际象棋布局放置</p>
+            </div>
+            <div class="feature">
+                <h3>精美图标</h3>
+                <p>使用矢量SVG棋子图标，清晰美观</p>
+            </div>
+            <div class="feature">
+                <h3>悬停效果</h3>
+                <p>鼠标悬停在棋子上有轻微放大效果</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 棋子配置 - 使用SVG图标
+        const pieceIcons = {
+            'wR': '../resources/pieces/wR.svg',
+            'wN': '../resources/pieces/wN.svg',
+            'wB': '../resources/pieces/wB.svg',
+            'wQ': '../resources/pieces/wQ.svg',
+            'wK': '../resources/pieces/wK.svg',
+            'wP': '../resources/pieces/wP.svg',
+            'bR': '../resources/pieces/bR.svg',
+            'bN': '../resources/pieces/bN.svg',
+            'bB': '../resources/pieces/bB.svg',
+            'bQ': '../resources/pieces/bQ.svg',
+            'bK': '../resources/pieces/bK.svg',
+            'bP': '../resources/pieces/bP.svg'
+        };
+        
+        // 初始棋盘配置 (FEN格式)
+        const INITIAL_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
+        
+        // 解析FEN字符串
+        function parseFen(fen) {
+            const board = Array(8).fill().map(() => Array(8).fill(null));
+            const rows = fen.split('/');
+            
+            for (let row = 0; row < 8; row++) {
+                let col = 0;
+                for (const char of rows[row]) {
+                    if (isNaN(char)) {
+                        board[row][col] = char;
+                        col++;
+                    } else {
+                        col += parseInt(char);
+                    }
+                }
+            }
+            
+            return board;
+        }
+        
+        // 创建棋盘格子并添加棋子
+        document.addEventListener('DOMContentLoaded', () => {
+            const board = document.getElementById('board');
+            const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+            
+            // 解析初始棋盘状态
+            const boardState = parseFen(INITIAL_FEN);
+            
+            // 国际象棋从白方视角开始（第8行是顶部）
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const square = document.createElement('div');
+                    square.classList.add('square');
+                    
+                    // 计算方格颜色：当行+列为偶数时为浅色
+                    if ((row + col) % 2 === 0) {
+                        square.classList.add('light');
+                    } else {
+                        square.classList.add('dark');
+                    }
+                    
+                    // 添加位置标记（仅用于调试/参考）
+                    square.dataset.position = files[col] + (8 - row);
+                    
+                    // 添加棋子（如果有）
+                    const pieceChar = boardState[row][col];
+                    if (pieceChar) {
+                        // 确定棋子颜色和类型
+                        const isBlack = pieceChar === pieceChar.toLowerCase();
+                        const pieceType = isBlack ? pieceChar.toUpperCase() : pieceChar;
+                        const colorPrefix = isBlack ? 'b' : 'w';
+                        
+                        // 特殊处理：马是N而不是K
+                        const pieceMap = {
+                            'R': 'R', 'N': 'N', 'B': 'B',
+                            'Q': 'Q', 'K': 'K', 'P': 'P'
+                        };
+                        
+                        const pieceKey = colorPrefix + pieceMap[pieceType];
+                        
+                        // 创建棋子元素
+                        const piece = document.createElement('div');
+                        piece.classList.add('piece');
+                        piece.dataset.type = pieceType;
+                        piece.dataset.color = isBlack ? 'black' : 'white';
+                        piece.dataset.position = files[col] + (8 - row);
+                        
+                        // 使用SVG图标
+                        piece.style.backgroundImage = `url('${pieceIcons[pieceKey]}')`;
+                        
+                        // 添加到格子
+                        square.appendChild(piece);
+                    }
+                    
+                    board.appendChild(square);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
