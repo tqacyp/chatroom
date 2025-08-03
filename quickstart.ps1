@@ -1,0 +1,2 @@
+Start-Process powershell.exe -ArgumentList "-Command", "sudo D:\Data\工具\ngrok\ngrok.exe http --url=deep-tomcat-virtually.ngrok-free.app 433"
+Start-Process powershell.exe -ArgumentList "-Command", "python3.10 .\app.py"
