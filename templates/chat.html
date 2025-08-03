@@ -513,7 +513,6 @@
     <script>
         // 建立SocketIO连接
         const socket = io();
-        let hasInitialHistory = false;
         let reconnecting = false;
         
         // DOM元素
@@ -521,16 +520,6 @@
         const messageContainer = document.getElementById('messageContainer');
         const messageInput = document.getElementById('message');
         const statusElement = document.getElementById('status');
-        
-        // 重连处理
-        socket.on('connect', () => {
-            console.log('Connected to server');
-            if (!hasInitialHistory) {
-                // 只在第一次连接时请求历史记录
-                socket.emit('request_history');
-                hasInitialHistory = true;
-            }
-        });
         
         socket.on('chat_history', (history) => {
             // 清空现有消息
@@ -580,11 +569,10 @@
             statusElement.textContent = '已连接';
             statusElement.style.color = '#2ecc71';
             
-            if (!hasInitialHistory) {
-                // 首次连接，请求历史记录
-                socket.emit('request_history');
-                hasInitialHistory = true;
-            } else if (reconnecting) {
+            // 每次连接都请求历史记录
+            socket.emit('request_history');
+            
+            if (reconnecting) {
                 // 重连成功
                 reconnecting = false;
                 statusElement.textContent = '已连接';

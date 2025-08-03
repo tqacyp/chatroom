@@ -241,11 +241,12 @@ def handle_connect():
     
     # 更新所有客户端的在线用户数
     emit('user_count', {'count': online_users}, broadcast=True)
-    
-    # 发送历史消息给新连接的用户
+
+@socketio.on('request_history')
+def handle_history_request():
+    """处理历史记录请求"""
     with lock:
-        for msg in chat_history:
-            emit('new_message', msg)
+        emit('chat_history', chat_history)
 
 @socketio.on('disconnect')
 def handle_disconnect():
