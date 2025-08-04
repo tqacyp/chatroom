@@ -427,6 +427,24 @@
             70% { opacity: 1; }
             100% { opacity: 0; display: none; }
         }
+        #chessBtn {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #4CAF50, #2E7D32);
+        color: white;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.4rem;
+        box-shadow: 0 4px 10px rgba(76, 175, 80, 0.3);
+        transition: var(--transition);
+        margin-right: 10px;
+        }
+        #chessBtn:active {
+            transform: scale(0.95);
+        }
     </style>
 </head>
 <body>
@@ -486,6 +504,7 @@
     <!-- 输入区域 -->
     <div class="input-area">
         <div class="form-row">
+            <button id="chessBtn" title="切换到国际象棋">♚</button>
             <div class="display-name-container">
                 <label for="display_name">显示名称:</label>
                 <input type="text" id="display_name" placeholder="输入显示名称" value="{{ username }}">
@@ -514,6 +533,12 @@
         // 建立SocketIO连接
         const socket = io();
         let reconnecting = false;
+
+         // 新增象棋按钮功能
+        const chessBtn = document.getElementById('chessBtn');
+        chessBtn.addEventListener('click', function() {
+            window.location.href = '/chess.html'; // 切换到象棋页面
+        });
         
         // DOM元素
         const chatHistory = document.getElementById('chatHistory');
@@ -683,7 +708,7 @@
             }
             scrollToBottom();
         }
-        
+
         // 初始调整
         adjustChatHeight();
         // 窗口大小变化时重新调整

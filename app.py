@@ -1,9 +1,10 @@
 import os
+import uuid
 import json
 import threading
 import time
 from datetime import datetime
-from flask import Flask, render_template, request, session, redirect, url_for, flash
+from flask import Flask, render_template, request, session, redirect, url_for, flash, jsonify
 from flask_socketio import SocketIO, emit
 import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -33,6 +34,19 @@ def create_tables():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    db.execute('''
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            username TEXT NOT NULL,
+            display_name TEXT NOT NULL,
+            message TEXT NOT NULL,
+            timestamp TEXT NOT NULL,
+            ip TEXT NOT NULL,
+            is_guest BOOLEAN NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
     db.commit()
 
 # 在应用启动时创建数据库表
@@ -49,6 +63,137 @@ online_users = 0
 # 在线用户列表
 online_users_list = {}
 
+# 象棋部分
+chess_games = {}
+
+def init_board():
+    """初始化棋盘状态 (FEN格式)"""
+    return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
+
+def parse_fen(fen):
+    """解析FEN字符串为二维数组"""
+    board = [['' for _ in range(8)] for _ in range(8)]
+    rows = fen.split('/')
+    
+    for row_idx, row in enumerate(rows):
+        col_idx = 0
+        for char in row:
+            if char.isdigit():
+                # 空位置
+                col_idx += int(char)
+            else:
+                board[row_idx][col_idx] = char
+                col_idx += 1
+    return board
+
+def fen_from_board(board):
+    """从棋盘数组生成FEN字符串"""
+    fen_rows = []
+    for row in board:
+        fen_row = ''
+        empty_count = 0
+        
+        for cell in row:
+            if cell == '':
+                empty_count += 1
+            else:
+                if empty_count > 0:
+                    fen_row += str(empty_count)
+                    empty_count = 0
+                fen_row += cell
+        
+        if empty_count > 0:
+            fen_row += str(empty_count)
+        
+        fen_rows.append(fen_row)
+    
+    return '/'.join(fen_rows)
+
+# 国际象棋API路由
+@app.route('/chess/new_game', methods=['POST'])
+def new_chess_game():
+    """创建新棋局"""
+    game_id = str(uuid.uuid4())[:8]
+    chess_games[game_id] = {
+        'state': init_board(),
+        'history': [],
+        'players': {}
+    }
+    return jsonify({'game_id': game_id})
+
+@app.route('/chess/<game_id>/state', methods=['GET'])
+def get_chess_state(game_id):
+    """获取当前棋局状态"""
+    if game_id not in chess_games:
+        return jsonify({'error': 'Game not found'}), 404
+    
+    # 将FEN转换为前端需要的格式
+    fen = chess_games[game_id]['state']
+    board = parse_fen(fen)
+    
+    # 转换为二维数组表示
+    return jsonify({
+        'board': board,
+        'current_player': 'white' if len(chess_games[game_id]['history']) % 2 == 0 else 'black',
+        'history': chess_games[game_id]['history']
+    })
+    
+@app.route('/chess/<game_id>/move', methods=['POST'])
+def make_move(game_id):
+    """执行移动操作"""
+    if game_id not in chess_games:
+        return jsonify({'error': 'Game not found'}), 404
+    
+    data = request.get_json()
+    from_pos = data.get('from')
+    to_pos = data.get('to')
+    
+    if not from_pos or not to_pos:
+        return jsonify({'error': 'Missing from or to position'}), 400
+    
+    try:
+        # 解析位置 (例如: "e2" -> [6, 4])
+        file_map = {'a': 0, 'b': 1, 'c': 2, 'd': 3, 'e': 4, 'f': 5, 'g': 6, 'h': 7}
+        from_row = 8 - int(from_pos[1])
+        from_col = file_map[from_pos[0]]
+        to_row = 8 - int(to_pos[1])
+        to_col = file_map[to_pos[0]]
+        
+        game = chess_games[game_id]
+        board = parse_fen(game['state'])
+        
+        # 简单验证：起始位置必须有棋子
+        if not board[from_row][from_col]:
+            return jsonify({'error': 'No piece at starting position'}), 400
+        
+        # 执行移动
+        piece = board[from_row][from_col]
+        board[from_row][from_col] = ''
+        board[to_row][to_col] = piece
+        
+        # 更新游戏状态
+        game['state'] = fen_from_board(board)
+        game['history'].append({
+            'from': from_pos,
+            'to': to_pos,
+            'piece': piece,
+            'player': game['current_player']
+        })
+        
+        # 切换玩家
+        game['current_player'] = 'black' if game['current_player'] == 'white' else 'white'
+        
+        return jsonify({
+            'success': True,
+            'message': f'Moved {piece} from {from_pos} to {to_pos}',
+            'new_state': game['state']
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Invalid move: {str(e)}'}), 400
+    
+# 聊天室部分
+
 def get_client_ip():
     """获取客户端真实IP地址"""
     if request.headers.get('X-Forwarded-For'):
@@ -63,79 +208,58 @@ def get_client_ip():
     
     return ip
 
-def save_chat_history():
-    """保存聊天记录到文件"""
-    global last_saved_index
-    while True:
-        time.sleep(600)  # 每10分钟保存一次
-        
-        with lock:
-            if not chat_history or last_saved_index >= len(chat_history):
-                continue
-            
-            # 获取新消息
-            new_messages = chat_history[last_saved_index:]
-            if not new_messages:
-                continue
-                
-            # 创建文件名
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-            filename = f"data/chat_history_{timestamp}.json"
-            
-            try:
-                # 创建新消息的可序列化副本
-                history_copy = []
-                for msg in new_messages:
-                    msg_copy = {
-                        'user_id': msg.get('user_id', 'guest'),
-                        'username': msg.get('username', 'Guest'),
-                        'display_name': msg.get('display_name', 'Guest'),
-                        'message': msg['message'],
-                        'timestamp': msg['timestamp'],
-                        'ip': msg.get('ip', '')
-                    }
-                    history_copy.append(msg_copy)
-                
-                # 保存到文件
-                with open(filename, 'w', encoding='utf-8') as f:
-                    json.dump(history_copy, f, ensure_ascii=False, indent=2)
-                    
-                # 更新已保存的索引
-                last_saved_index = len(chat_history)
-                
-                print(f"聊天记录已保存到: {filename}")
-            except Exception as e:
-                print(f"保存聊天记录失败: {str(e)}")
+def save_message_to_db(message):
+    """将消息保存到数据库"""
+    try:
+        db = get_db()
+        db.execute('''
+            INSERT INTO messages 
+            (user_id, username, display_name, message, timestamp, ip, is_guest)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            message['user_id'],
+            message['username'],
+            message['display_name'],
+            message['message'],
+            message['timestamp'],
+            message['ip'],
+            message['is_guest']
+        ))
+        db.commit()
+        return True
+    except Exception as e:
+        print(f"保存消息到数据库失败: {str(e)}")
+        return False
 
 def load_chat_history():
-    """从文件加载历史聊天记录"""
+    """从数据库加载聊天记录"""
     global chat_history
     try:
-        # 获取data目录下所有聊天记录文件
-        history_files = sorted([f for f in os.listdir('data') if f.startswith('chat_history_')])
-        loaded_messages = []
+        db = get_db()
+        messages = db.execute('''
+            SELECT * FROM messages 
+            ORDER BY created_at ASC
+            LIMIT 1000
+        ''').fetchall()
         
-        # 按时间顺序读取所有文件
-        for filename in history_files:
-            file_path = os.path.join('data', filename)
-            with open(file_path, 'r', encoding='utf-8') as f:
-                messages = json.load(f)
-                loaded_messages.extend(messages)
+        chat_history = []
+        for msg in messages:
+            chat_history.append({
+                'user_id': msg['user_id'],
+                'username': msg['username'],
+                'display_name': msg['display_name'],
+                'message': msg['message'],
+                'timestamp': msg['timestamp'],
+                'ip': msg['ip'],
+                'is_guest': bool(msg['is_guest'])
+            })
         
-        # 根据时间戳排序并添加到聊天记录
-        if loaded_messages:
-            loaded_messages.sort(key=lambda x: x['timestamp'])
-            chat_history.extend(loaded_messages)
-            print(f"已加载 {len(loaded_messages)} 条历史消息")
+        print(f"已从数据库加载 {len(chat_history)} 条历史消息")
     except Exception as e:
         print(f"加载聊天记录失败: {str(e)}")
-        
+
 # 启动时加载历史记录
 load_chat_history()
-
-# 启动后台保存线程
-save_thread = threading.Thread(target=save_chat_history, daemon=True)
-save_thread.start()
 
 @app.route('/')
 def index():
@@ -297,12 +421,15 @@ def handle_send_message(data):
         'is_guest': session.get('is_guest', True)
     }
     
-    # 保存消息
-    with lock:
-        chat_history.append(new_message)
-    
-    # 广播新消息给所有客户端
-    emit('new_message', new_message, broadcast=True)
+    # 保存消息到数据库
+    if save_message_to_db(new_message):
+        with lock:
+            chat_history.append(new_message)
+        
+        # 广播新消息给所有客户端
+        emit('new_message', new_message, broadcast=True)
+        # 广播保存成功通知
+        emit('save_notification', broadcast=True)
 
 if __name__ == '__main__':
-    socketio.run(app, host='127.0.0.1', port=8080, debug=True)
+    socketio.run(app, host='127.0.0.1', port=8000, debug=False)
