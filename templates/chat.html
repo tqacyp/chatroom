@@ -321,18 +321,34 @@
             }
             
             .form-row {
-                flex-direction: column;
-                align-items: stretch;
+                flex-direction: row;
+                align-items: center;
                 gap: 8px;
+                flex-wrap: nowrap;
             }
             
-            #username {
+            .display-name-container {
                 flex: 1;
+                min-width: 0;
             }
             
-            #username {
+            #display_name {
+                max-width: none;
+                width: 100%;
                 font-size: 0.85rem;
                 padding: 8px 10px;
+            }
+            
+            .chat-history {
+                height: calc(100vh - var(--input-area-height, 120px));
+                padding-bottom: var(--input-area-height, 120px);
+            }
+            
+            body {
+                position: fixed;
+                width: 100%;
+                height: 100%;
+                overflow: hidden;
             }
         }
         .user-info {
@@ -379,6 +395,7 @@
         
         #display_name {
             flex: 1;
+            max-width: 200px;
             padding: 8px 12px;
             border: 1px solid #e0e0e0;
             border-radius: 10px;
@@ -469,7 +486,12 @@
             {% else %}
                 当前用户: <strong>{{ username }}</strong>
             {% endif %}
-            <a href="{{ url_for('logout') }}" class="logout-btn">{% if is_guest %}没有b用的按钮{% else %}退出{% endif %}</a>
+            {% if is_guest %}
+                <a href="{{ url_for('login') }}" class="logout-btn">登录</a>
+                <a href="{{ url_for('register') }}" class="logout-btn">注册</a>
+            {% else %}
+                <a href="{{ url_for('logout') }}" class="logout-btn">退出</a>
+            {% endif %}
         </div>
     </div>
     
@@ -711,8 +733,20 @@
 
         // 初始调整
         adjustChatHeight();
-        // 窗口大小变化时重新调整
+        
+        // 监听窗口大小变化
         window.addEventListener('resize', adjustChatHeight);
+        
+        // 监听视口变化（移动端键盘弹出）
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', adjustChatHeight);
+            window.visualViewport.addEventListener('scroll', adjustChatHeight);
+        }
+        
+        // 监听输入框焦点变化
+        messageInput.addEventListener('focus', function() {
+            setTimeout(adjustChatHeight, 300); // 键盘弹出后调整
+        });
         
         // 添加游客标识样式
         const style = document.createElement('style');

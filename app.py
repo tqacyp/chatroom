@@ -15,18 +15,25 @@ if not os.path.exists('data'):
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key_here'
-app.config['DATABASE'] = 'data/chat_users.db'
+app.config['USER_DATABASE'] = 'data/chat_users.db'
+app.config['MESSAGE_DATABASE'] = 'data/chat_messages.db'
 socketio = SocketIO(app, async_mode='threading', cors_allowed_origins="*")
 
 # 初始化数据库
-def get_db():
-    db = sqlite3.connect(app.config['DATABASE'])
+def get_user_db():
+    db = sqlite3.connect(app.config['USER_DATABASE'])
+    db.row_factory = sqlite3.Row
+    return db
+
+def get_message_db():
+    db = sqlite3.connect(app.config['MESSAGE_DATABASE'])
     db.row_factory = sqlite3.Row
     return db
 
 def create_tables():
-    db = get_db()
-    db.execute('''
+    # 创建用户表
+    user_db = get_user_db()
+    user_db.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
@@ -34,7 +41,12 @@ def create_tables():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
-    db.execute('''
+    user_db.commit()
+    user_db.close()
+
+    # 创建消息表
+    msg_db = get_message_db()
+    msg_db.execute('''
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id TEXT NOT NULL,
@@ -47,7 +59,8 @@ def create_tables():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
-    db.commit()
+    msg_db.commit()
+    msg_db.close()
 
 # 在应用启动时创建数据库表
 create_tables()
@@ -211,7 +224,7 @@ def get_client_ip():
 def save_message_to_db(message):
     """将消息保存到数据库"""
     try:
-        db = get_db()
+        db = get_message_db()
         db.execute('''
             INSERT INTO messages 
             (user_id, username, display_name, message, timestamp, ip, is_guest)
@@ -235,7 +248,7 @@ def load_chat_history():
     """从数据库加载聊天记录"""
     global chat_history
     try:
-        db = get_db()
+        db = get_message_db()
         messages = db.execute('''
             SELECT * FROM messages 
             ORDER BY created_at ASC
@@ -283,7 +296,7 @@ def login():
         username = request.form['username']
         password = request.form['password']
         
-        db = get_db()
+        db = get_user_db()
         user = db.execute(
             'SELECT * FROM users WHERE username = ?', (username,)
         ).fetchone()
@@ -311,7 +324,7 @@ def register():
             flash('两次输入的密码不一致', 'error')
             return render_template('register.html')
         
-        db = get_db()
+        db = get_user_db()
         try:
             db.execute(
                 'INSERT INTO users (username, password) VALUES (?, ?)',
@@ -429,7 +442,7 @@ def handle_send_message(data):
         # 广播新消息给所有客户端
         emit('new_message', new_message, broadcast=True)
         # 广播保存成功通知
-        emit('save_notification', broadcast=True)
+        # emit('save_notification', broadcast=True)
 
 if __name__ == '__main__':
-    socketio.run(app, host='127.0.0.1', port=8000, debug=False)
+    socketio.run(app, host='192.168.31.10', port=88, debug=False)
